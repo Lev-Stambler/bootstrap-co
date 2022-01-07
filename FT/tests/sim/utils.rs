@@ -83,6 +83,7 @@ pub fn init_with_macros(
     init_token_supply: u128,
 ) -> (
     UserAccount,
+    UserAccount,
     ContractAccount<TokenSetContract>,
     ContractAccount<DeFiContract>,
     Vec<ContractAccount<FtContract>>,
@@ -124,6 +125,7 @@ pub fn init_with_macros(
         })
         .collect();
 
+    let owner_bob = root.create_user("owner_bob".to_string(), to_yocto("100"));
     // TODO
     // uses default values for deposit and gas
     let token_set = deploy!(
@@ -137,7 +139,7 @@ pub fn init_with_macros(
         signer_account: root,
         // init method
         init_method: new_default_meta(
-            root.valid_account_id(),
+            owner_bob.valid_account_id(),
             name,
             symbol,
             None,
@@ -149,6 +151,9 @@ pub fn init_with_macros(
     );
     let alice = root.create_user("alice".to_string(), to_yocto("100"));
     register_user(&ft_ids, &alice);
+    register_user(&ft_ids, &root);
+    register_user(&ft_ids, &owner_bob);
+    register_user(&ft_ids, &token_set.user_account);
 
     let defi = deploy!(
         contract: DeFiContract,
@@ -160,5 +165,5 @@ pub fn init_with_macros(
         )
     );
 
-    (root, token_set, defi, ft_contracts, alice)
+    (root, owner_bob, token_set, defi, ft_contracts, alice)
 }

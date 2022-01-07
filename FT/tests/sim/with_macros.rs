@@ -6,15 +6,50 @@ use crate::utils::{init_with_macros as init, register_user};
 
 #[test]
 fn simulate_init() {
-    // let set_ratios =
     let initial_balance = 1_000;
-    let (_, token_set, _, fts, _) = init(vec![1, 2], None, None, initial_balance);
+    let (_, _, token_set, _, fts, _) = init(vec![1, 2], None, None, initial_balance);
 
     let total_supplies: Vec<U128> =
         fts.iter().map(|ft| view!(ft.ft_total_supply()).unwrap_json()).collect();
 
     assert_eq!(initial_balance, total_supplies[0].0);
     assert_eq!(initial_balance, total_supplies[1].0);
+}
+
+#[test]
+fn simulate_wrapping() {
+    let initial_balance = 1_000;
+    // 1% fee
+    let platform_fee = 10_000_000_000_000;
+
+    // 4% fee
+    let owner_fee = 40_000_000_000_000;
+    let (root, owner_bob, token_set, _, fts, alice) =
+        init(vec![1, 2, 4], Some(platform_fee), Some(owner_fee), initial_balance);
+
+    fts.iter().for_each(|ft| {
+        call!(
+            root,
+            ft.ft_transfer(alice.valid_account_id(), initial_balance.into(), None),
+            deposit = 1
+        )
+        .assert_success();
+        call!(
+            alice,
+            ft.ft_transfer_call(
+                token_set.valid_account_id(),
+                initial_balance.into(),
+                None,
+                format!("{{\"sender_id\":\"{}\"}}", token_set.account_id()).to_string()
+            ),
+            deposit = 1
+        )
+        .assert_success();
+    });
+    call!(alice, token_set.wrap(None), deposit = 1).assert_success();
+    let alice_balance: U128 =
+        view!(token_set.ft_balance_of(alice.valid_account_id())).unwrap_json();
+    assert_eq!(alice_balance.0, (initial_balance / 4) * 95_000 / 100_000);
 }
 
 // #[test]
