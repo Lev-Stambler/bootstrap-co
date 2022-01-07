@@ -15,8 +15,6 @@ NOTES:
   - To prevent the deployed contract from being modified or deleted, it should not have any access
     keys on its account.
 */
-use std::ffi::VaList;
-
 use near_contract_standards::fungible_token::metadata::{
     FungibleTokenMetadata, FungibleTokenMetadataProvider, FT_METADATA_SPEC,
 };
@@ -45,6 +43,13 @@ pub struct FeeReceiver {
     platform_fee: u128,
     /// The platform account to receive te token
     platform_id: AccountId,
+}
+
+#[derive(BorshDeserialize, BorshSerialize, PanicOnDefault, Serialize, Deserialize)]
+#[serde(crate = "near_sdk::serde")]
+pub struct TokenWithRatioValid {
+    token_id: ValidAccountId,
+    ratio: u32,
 }
 
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault, Serialize, Deserialize)]
@@ -80,7 +85,7 @@ impl Contract {
         name: String,
         symbol: String,
         icon_url: String,
-        set_ratios: Vec<TokenWithRatio>,
+        set_ratios: Vec<TokenWithRatioValid>,
         // TODO: should be hardcoded?
         platform_fee: u128,
         platform_id: ValidAccountId,
@@ -108,7 +113,7 @@ impl Contract {
     pub fn new(
         owner_id: ValidAccountId,
         metadata: FungibleTokenMetadata,
-        set_ratios: Vec<TokenWithRatio>,
+        set_ratios: Vec<TokenWithRatioValid>,
         set_initial_fee: FeeReceiver,
     ) -> Self {
         assert!(!env::state_exists(), "Already initialized");
@@ -126,6 +131,7 @@ impl Contract {
     }
 
     pub fn wrap(&mut self, amount: Option<u128>) {
+        utils::assert_1_yocto();
         self.set_info.wrap(&self.owner_id, &mut self.token, &mut self.balances, amount);
     }
 
@@ -169,8 +175,6 @@ mod tests {
 
     use super::*;
 
-    const TOTAL_SUPPLY: Balance = 1_000_000_000_000_000;
-
     fn get_context(predecessor_account_id: ValidAccountId) -> VMContextBuilder {
         let mut builder = VMContextBuilder::new();
         builder
@@ -184,10 +188,23 @@ mod tests {
     fn test_new() {
         let mut context = get_context(accounts(1));
         testing_env!(context.build());
-        let contract = Contract::new_default_meta(accounts(1).into(), TOTAL_SUPPLY.into());
+
+        let platform_id = accounts(4);
+        let token_id = accounts(5);
+
+        let contract = Contract::new_default_meta(
+            accounts(2).into(),
+            "YOUR MOM".to_string(),
+            "YOUR MOM".to_string(),
+            "".to_string(),
+            vec![TokenWithRatioValid { token_id, ratio: 1 }],
+            0,
+            platform_id,
+            0,
+        );
         testing_env!(context.is_view(true).build());
-        assert_eq!(contract.ft_total_supply().0, TOTAL_SUPPLY);
-        assert_eq!(contract.ft_balance_of(accounts(1)).0, TOTAL_SUPPLY);
+        assert_eq!(contract.ft_total_supply().0, 0);
+        assert_eq!(contract.ft_balance_of(accounts(1)).0, 0);
     }
 
     #[test]
@@ -199,10 +216,45 @@ mod tests {
     }
 
     #[test]
-    fn test_transfer() {
+    fn test_wrap_transfer() {
         let mut context = get_context(accounts(2));
         testing_env!(context.build());
-        let mut contract = Contract::new_default_meta(accounts(2).into(), TOTAL_SUPPLY.into());
+        let platform_id = accounts(4);
+        let token_id = accounts(5);
+        let mut contract = Contract::new_default_meta(
+            accounts(2).into(),
+            "YOUR MOM".to_string(),
+            "YOUR MOM".to_string(),
+            "".to_string(),
+            vec![TokenWithRatioValid { token_id: token_id.clone(), ratio: 1 }],
+            0,
+            platform_id,
+            0,
+        );
+
+        let amount_transfer = 100;
+        contract.balances.increase_balance(
+            &accounts(1).to_string(),
+            &token_id.clone().to_string(),
+            amount_transfer,
+        );
+
+        testing_env!(context
+            .storage_usage(env::storage_usage())
+            .attached_deposit(contract.storage_balance_bounds().min.into())
+            .predecessor_account_id(accounts(2))
+            .build());
+        // Paying for account registration, aka storage deposit
+        contract.storage_deposit(None, None);
+
+        testing_env!(context
+            .storage_usage(env::storage_usage())
+            .attached_deposit(contract.storage_balance_bounds().min.into())
+            .predecessor_account_id(accounts(4))
+            .build());
+        // Paying for account registration, aka storage deposit
+        contract.storage_deposit(None, None);
+
         testing_env!(context
             .storage_usage(env::storage_usage())
             .attached_deposit(contract.storage_balance_bounds().min.into())
@@ -210,14 +262,51 @@ mod tests {
             .build());
         // Paying for account registration, aka storage deposit
         contract.storage_deposit(None, None);
+        assert_eq!(
+            contract
+                .balances
+                .get_ft_balance(&accounts(1).to_string(), &token_id.clone().to_string()),
+            amount_transfer
+        );
+
+        testing_env!(context
+            .storage_usage(env::storage_usage())
+            .attached_deposit(contract.storage_balance_bounds().min.into())
+            .predecessor_account_id(accounts(1))
+            .build());
+        // Paying for account registration, aka storage deposit
+        contract.storage_deposit(None, None);
+        assert_eq!(
+            contract
+                .balances
+                .get_ft_balance(&accounts(1).to_string(), &token_id.clone().to_string()),
+            amount_transfer
+        );
 
         testing_env!(context
             .storage_usage(env::storage_usage())
             .attached_deposit(1)
-            .predecessor_account_id(accounts(2))
+            .predecessor_account_id(accounts(1))
             .build());
-        let transfer_amount = TOTAL_SUPPLY / 3;
-        contract.ft_transfer(accounts(1), transfer_amount.into(), None);
+        // Paying for account registration, aka storage deposit
+
+        contract.wrap(None);
+        assert_eq!(
+            contract
+                .balances
+                .get_ft_balance(&accounts(1).to_string(), &token_id.clone().to_string()),
+            0
+        );
+
+        // TODO: with wrap
+
+        testing_env!(context
+            .storage_usage(env::storage_usage())
+            .attached_deposit(1)
+            .predecessor_account_id(accounts(1))
+            .build());
+        assert_eq!(contract.ft_balance_of(accounts(1)).0, amount_transfer);
+        contract.ft_transfer(accounts(2), amount_transfer.into(), None);
 
         testing_env!(context
             .storage_usage(env::storage_usage())
@@ -225,7 +314,7 @@ mod tests {
             .is_view(true)
             .attached_deposit(0)
             .build());
-        assert_eq!(contract.ft_balance_of(accounts(2)).0, (TOTAL_SUPPLY - transfer_amount));
-        assert_eq!(contract.ft_balance_of(accounts(1)).0, transfer_amount);
+        assert_eq!(contract.ft_balance_of(accounts(1)).0, (0));
+        assert_eq!(contract.ft_balance_of(accounts(2)).0, amount_transfer);
     }
 }

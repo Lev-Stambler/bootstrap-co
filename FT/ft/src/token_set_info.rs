@@ -1,17 +1,31 @@
+use std::collections::HashSet;
+
 use near_contract_standards::fungible_token::FungibleToken;
 use near_internal_balance::ft::FungibleTokenBalances;
 use near_sdk::{collections::Vector, env, AccountId, Balance};
 use primitive_types::U256;
 
-use crate::{FeeReceiver, SetInfo, TokenWithRatio};
+use crate::{FeeReceiver, SetInfo, TokenWithRatio, TokenWithRatioValid};
 
 const FEE_DENOMINATOR: u128 = 1_000_000_000_000_000;
 
 impl SetInfo {
-    pub(crate) fn new(set_ratios: Vec<TokenWithRatio>, set_initial_fee: FeeReceiver) -> Self {
+    pub(crate) fn new(set_ratios: Vec<TokenWithRatioValid>, set_initial_fee: FeeReceiver) -> Self {
+        // TODO: check each token_id ratio unique....
+        if set_ratios.len() == 0 {
+            panic!("Expected at least one token in the set");
+        }
+
+        let mut token_ids: HashSet<AccountId> = HashSet::default();
+
         let mut ratios = Vector::new(b"set-ratio".to_vec());
+
         for ratio in set_ratios {
-            ratios.push(&ratio);
+            let not_present = token_ids.insert(ratio.token_id.clone().to_string());
+            if !not_present {
+                panic!("Each token in the ratio must be unique");
+            }
+            ratios.push(&TokenWithRatio { token_id: ratio.token_id.into(), ratio: ratio.ratio });
         }
         if set_initial_fee.owner_fee > FEE_DENOMINATOR
             || set_initial_fee.platform_fee > FEE_DENOMINATOR
