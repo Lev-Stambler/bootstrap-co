@@ -3,9 +3,8 @@ use std::collections::HashSet;
 use near_contract_standards::fungible_token::FungibleToken;
 use near_internal_balance::ft::FungibleTokenBalances;
 use near_sdk::{collections::Vector, env, AccountId, Balance};
-use primitive_types::U256;
 
-use crate::{FeeReceiver, SetInfo, TokenWithRatio, TokenWithRatioValid};
+use crate::{FeeReceiver, SetInfo, TokenWithRatio, TokenWithRatioValid, utils::U256};
 
 const FEE_DENOMINATOR: u128 = 1_000_000_000_000_000;
 
