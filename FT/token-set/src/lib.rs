@@ -141,11 +141,13 @@ impl Contract {
         this
     }
 
+    #[payable]
     pub fn wrap(&mut self, amount: Option<u128>) {
         utils::assert_1_yocto();
         self.set_info.wrap(&self.owner_id, &mut self.token, &mut self.balances, amount);
     }
 
+    #[payable]
     pub fn update_owner_fee(&mut self, new_fee: u128) {
         utils::assert_1_yocto();
         assert_eq!(

@@ -40,16 +40,34 @@ fn simulate_wrapping() {
                 token_set.valid_account_id(),
                 initial_balance.into(),
                 None,
-                format!("{{\"sender_id\":\"{}\"}}", token_set.account_id()).to_string()
+                format!("{{\"sender_id\":\"{}\"}}", alice.account_id()).to_string()
             ),
             deposit = 1
         )
         .assert_success();
     });
     call!(alice, token_set.wrap(None), deposit = 1).assert_success();
+
+    let amount_minted = initial_balance / 4;
+    let expected_root = amount_minted * 1_000 / 100_000;
+    let expected_bob = amount_minted * 4_000 / 100_000;
+    let expected_alice = amount_minted - expected_bob - expected_root;
+
     let alice_balance: U128 =
         view!(token_set.ft_balance_of(alice.valid_account_id())).unwrap_json();
-    assert_eq!(alice_balance.0, (initial_balance / 4) * 95_000 / 100_000);
+    assert_eq!(alice_balance.0, expected_alice);
+
+    // The platform
+    let root_balance: U128 = view!(token_set.ft_balance_of(root.valid_account_id())).unwrap_json();
+    assert_eq!(root_balance.0, expected_root);
+
+    // The owner
+    let bob_balance: U128 =
+        view!(token_set.ft_balance_of(owner_bob.valid_account_id())).unwrap_json();
+    assert_eq!(bob_balance.0, expected_bob);
+
+    let total_supply: U128 = view!(token_set.ft_total_supply()).unwrap_json();
+    assert_eq!(total_supply.0, amount_minted);
 }
 
 // #[test]
