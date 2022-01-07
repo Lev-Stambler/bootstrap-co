@@ -1,5 +1,5 @@
 [package]
-name = "fungible-token-wrapper"
+name = "token-set-fungible-token-wrapper"
 version = "0.0.1"
 authors = ["Near Inc <hello@near.org>"]
 edition = "2018"
@@ -9,7 +9,7 @@ near-sdk = "3.1.0"
 near-sdk-sim = "3.1.1"
 
 # remember to include a line for each contract
-fungible-token = { path = "./ft" }
+token-set-fungible-token = { path = "./ft" }
 defi = { path = "./test-contract-defi" }
 
 [profile.release]
