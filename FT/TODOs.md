@@ -2,3 +2,4 @@
 - [ ] Internal balance should remove an account when balance hits 0
 - [ ] Almost worth it for internal bal to just have max # tokens per user or smthng,
 or maybe not, maybe j track # of tokens and calc storage from there?
+on account close --> delete entries in internal balances

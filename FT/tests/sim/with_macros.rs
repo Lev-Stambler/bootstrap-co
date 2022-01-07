@@ -68,6 +68,10 @@ fn simulate_wrapping() {
 
     let total_supply: U128 = view!(token_set.ft_total_supply()).unwrap_json();
     assert_eq!(total_supply.0, amount_minted);
+
+    // Test alice burning her tokens
+    // TODO: burning
+    // call!(alice, token_set.ft_bu)
 }
 
 // #[test]

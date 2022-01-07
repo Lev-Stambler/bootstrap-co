@@ -69,6 +69,7 @@ pub struct SetInfo {
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault, NearInternalBalance)]
 pub struct Contract {
     owner_id: AccountId,
+    #[storage_management]
     token: FungibleToken,
     metadata: LazyOption<FungibleTokenMetadata>,
     balances: FungibleTokenBalances,
@@ -134,10 +135,8 @@ impl Contract {
         // Set the storage usage to the amount for standard ft tokens + the amount of storage
         // required for internal balances
         // TODO: this should change with storage mod
-        this.token.account_storage_usage = this.token.account_storage_usage
-            + numb_tokens as u64 * this.balances.storage_usage_one_account_one_token();
-        this.token.internal_register_account(owner_id.as_ref());
-        this.token.internal_deposit(owner_id.as_ref(), 0);
+        this.token.account_storage_usage =
+            this.balances.get_storage_requirement(numb_tokens, this.token.account_storage_usage);
         this
     }
 
@@ -159,9 +158,13 @@ impl Contract {
         self.set_info.change_owner_fee(new_fee);
     }
 
-    // TODO: what goes on here???, i.g. same thing?
+    // TODO: let's think about,
+    // if there account was deleted that means we have to do something with the balance
+    // maybe we j transfer to platform?
     fn on_account_closed(&mut self, account_id: AccountId, balance: Balance) {
         log!("Closed @{} with {}", account_id, balance);
+        let platform_id = self.set_info.fee.platform_id.clone();
+        self.set_info.on_burn(&mut self.balances, platform_id, balance);
     }
 
     fn on_tokens_burned(&mut self, account_id: AccountId, amount: Balance) {
@@ -211,9 +214,9 @@ mod tests {
             "YOUR MOM".to_string(),
             None,
             vec![TokenWithRatioValid { token_id, ratio: 1 }],
-            0,
+            0.into(),
             platform_id,
-            0,
+            0.into(),
         );
         testing_env!(context.is_view(true).build());
         assert_eq!(contract.ft_total_supply().0, 0);
@@ -240,9 +243,9 @@ mod tests {
             "YOUR MOM".to_string(),
             None,
             vec![TokenWithRatioValid { token_id: token_id.clone(), ratio: 1 }],
-            0,
+            0.into(),
             platform_id,
-            0,
+            0.into(),
         );
 
         let amount_transfer = 100;
