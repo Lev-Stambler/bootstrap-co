@@ -69,7 +69,6 @@ pub struct SetInfo {
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault, NearInternalBalance)]
 pub struct Contract {
     owner_id: AccountId,
-    #[storage_management]
     token: FungibleToken,
     metadata: LazyOption<FungibleTokenMetadata>,
     balances: FungibleTokenBalances,
@@ -129,14 +128,10 @@ impl Contract {
             owner_id: owner_id.to_string(),
             token: FungibleToken::new(b"a".to_vec()),
             metadata: LazyOption::new(b"m".to_vec(), Some(&metadata)),
-            balances: FungibleTokenBalances::new(&b"bals".to_vec()),
+            balances: FungibleTokenBalances::new(),
             set_info: SetInfo::new(set_ratios, set_initial_fee),
         };
-        // Set the storage usage to the amount for standard ft tokens + the amount of storage
-        // required for internal balances
-        // TODO: this should change with storage mod
-        this.token.account_storage_usage =
-            this.balances.get_storage_requirement(numb_tokens, this.token.account_storage_usage);
+        
         this
     }
 
